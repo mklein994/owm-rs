@@ -84,7 +84,7 @@ pub struct Current {
     pub uvi: f64,
 
     /// Average visibility, metres. The maximum value of the visibility is 10km
-    pub visibility: u16,
+    pub visibility: Option<u16>,
 
     /// Wind speed. Unit Default: meter/sec, Metric: meter/sec, Imperial: miles/hour.
     pub wind_speed: f64,
@@ -179,7 +179,7 @@ pub struct Hourly {
     pub clouds: u8,
 
     /// Average visibility, metres. The maximum value of the visibility is 10km
-    pub visibility: u16,
+    pub visibility: Option<u16>,
 
     /// Wind speed. Units – default: metre/sec, metric: metre/sec, imperial: miles/hour. [How to change units used](https://openweathermap.org/api/one-call-api#data)
     pub wind_speed: f64,
