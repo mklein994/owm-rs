@@ -1,10 +1,62 @@
 //! Strongly typed models for OpenWeatherMap's "One Call" API:
 //! <https://openweathermap.org/api/one-call-3>
 
-use chrono::prelude::*;
-use chrono::serde::ts_seconds;
+use jiff::Zoned;
 use serde::{Deserialize, Serialize};
 use std::fmt;
+
+mod ts_seconds {
+    use jiff::{tz::TimeZone, Timestamp, Zoned};
+    use serde::de;
+    use std::fmt;
+
+    struct SecondsTimestampVisitor;
+
+    pub fn deserialize<'de, D>(d: D) -> Result<Zoned, D::Error>
+    where
+        D: de::Deserializer<'de>,
+    {
+        d.deserialize_i64(SecondsTimestampVisitor)
+    }
+
+    impl<'de> de::Visitor<'de> for SecondsTimestampVisitor {
+        type Value = Zoned;
+
+        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            formatter.write_str("a unix timestamp in seconds")
+        }
+
+        fn visit_i64<E>(self, value: i64) -> Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            Timestamp::from_second(value)
+                .map(|x| x.to_zoned(TimeZone::UTC))
+                .map_err(invalid_timestamp)
+        }
+
+        fn visit_u64<E>(self, value: u64) -> Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            if value > i64::MAX as u64 {
+                Err(invalid_timestamp(value))
+            } else {
+                Timestamp::from_second(value as i64)
+                    .map(|x| x.to_zoned(TimeZone::UTC))
+                    .map_err(invalid_timestamp)
+            }
+        }
+    }
+
+    fn invalid_timestamp<T, E>(x: T) -> E
+    where
+        T: std::fmt::Display,
+        E: de::Error,
+    {
+        de::Error::custom(format!("invalid timestamp: {x}"))
+    }
+}
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct OwmError {
@@ -50,15 +102,15 @@ pub struct Weather {
 pub struct Current {
     /// Current time, unix, UTC
     #[serde(with = "ts_seconds")]
-    pub dt: DateTime<Utc>,
+    pub dt: Zoned,
 
     /// Sunrise time, unix, UTC
     #[serde(with = "ts_seconds")]
-    pub sunrise: DateTime<Utc>,
+    pub sunrise: Zoned,
 
     /// Sunset time, unix, UTC
     #[serde(with = "ts_seconds")]
-    pub sunset: DateTime<Utc>,
+    pub sunset: Zoned,
 
     /// Temperature. Unit Default: Kelvin, Metric: Celsius, Imperial: Fahrenheit.
     pub temp: f64,
@@ -143,7 +195,7 @@ pub enum Main {
 pub struct Minutely {
     /// Time of the forecasted data, Unix, UTC
     #[serde(with = "ts_seconds")]
-    pub dt: DateTime<Utc>,
+    pub dt: Zoned,
 
     /// Precipitation volume, mm
     pub precipitation: f64,
@@ -154,7 +206,7 @@ pub struct Minutely {
 pub struct Hourly {
     /// Time of the forecasted data, Unix, UTC
     #[serde(with = "ts_seconds")]
-    pub dt: DateTime<Utc>,
+    pub dt: Zoned,
 
     /// Temperature. Unit Default: Kelvin, Metric: Celsius, Imperial: Fahrenheit. [How
     /// to change units used](https://openweathermap.org/api/one-call-api#data)
@@ -214,23 +266,23 @@ pub struct Precipitation {
 pub struct Daily {
     /// Time of the forecasted data, Unix, UTC
     #[serde(with = "ts_seconds")]
-    pub dt: DateTime<Utc>,
+    pub dt: Zoned,
 
     /// Sunrise time, Unix, UTC
     #[serde(with = "ts_seconds")]
-    pub sunrise: DateTime<Utc>,
+    pub sunrise: Zoned,
 
     /// Sunset time, Unix, UTC
     #[serde(with = "ts_seconds")]
-    pub sunset: DateTime<Utc>,
+    pub sunset: Zoned,
 
     /// The time of when the moon sets for the day, Unix, UTC
     #[serde(with = "ts_seconds")]
-    pub moonrise: DateTime<Utc>,
+    pub moonrise: Zoned,
 
     /// The time of when the moon sets for the day, Unix, UTC
     #[serde(with = "ts_seconds")]
-    pub moonset: DateTime<Utc>,
+    pub moonset: Zoned,
 
     /// Moon phase. `0` and `1` are 'new moon', `0.25` is 'first quarter moon', `0.5` is 'full moon' and `0.75` is 'last quarter moon'. The periods in between are called 'waxing crescent', 'waxing gibous', 'waning gibous', and 'waning crescent', respectively.
     pub moon_phase: f64,
@@ -325,15 +377,38 @@ pub struct Alert {
 
     /// Date and time of the start of the alert, Unix, UTC
     #[serde(with = "ts_seconds")]
-    pub start: DateTime<Utc>,
+    pub start: Zoned,
 
     /// Date and time of the end of the alert, Unix, UTC
     #[serde(with = "ts_seconds")]
-    pub end: DateTime<Utc>,
+    pub end: Zoned,
 
     /// Description of the alert
     pub description: String,
 
     /// Type of severe weather
     pub tags: Vec<String>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use jiff::{tz::TimeZone, Timestamp};
+
+    #[derive(Debug, Deserialize)]
+    struct Foo {
+        #[serde(with = "ts_seconds")]
+        dt: Zoned,
+    }
+
+    #[test]
+    fn parse_timestamp() {
+        let ts = 1721691041;
+        let foo: Foo = serde_json::from_str(&format!(r#"{{ "dt": {ts} }}"#)).unwrap();
+        let expected = Timestamp::from_second(ts)
+            .unwrap()
+            .to_zoned(TimeZone::system());
+
+        assert_eq!(expected, foo.dt);
+    }
 }
