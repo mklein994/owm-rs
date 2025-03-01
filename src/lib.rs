@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 
 mod ts_seconds {
-    use jiff::{tz::TimeZone, Timestamp, Zoned};
+    use jiff::{Timestamp, Zoned, tz::TimeZone};
     use serde::de;
     use std::fmt;
 
@@ -393,7 +393,7 @@ pub struct Alert {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use jiff::{tz::TimeZone, Timestamp};
+    use jiff::{Timestamp, tz::TimeZone};
 
     #[derive(Debug, Deserialize)]
     struct Foo {
