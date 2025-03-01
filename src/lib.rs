@@ -19,7 +19,7 @@ mod ts_seconds {
         d.deserialize_i64(SecondsTimestampVisitor)
     }
 
-    impl<'de> de::Visitor<'de> for SecondsTimestampVisitor {
+    impl de::Visitor<'_> for SecondsTimestampVisitor {
         type Value = Zoned;
 
         fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
